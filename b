@@ -97,7 +97,7 @@
       this.targetX = null;
       this.targetY = null;
 
-      this.name = 'леха';
+      this.name = 'ольга владимировна';
 
       this.connect();
     }
