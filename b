@@ -249,15 +249,15 @@
 
     calculateDistance(x1, y1, x2, y2) { return Math.hypot(x2 - x1, y2 - y1); }
 
-    // ИЗМЕНЁННЫЙ move: режим притяжения при AI OFF + pullToPlayer (клавиша B)
+    // РЕЖИМ ПРИТЯЖЕНИЯ + обычное поведение
     move({ x, y }) {
       if (this.lastMoveTime && Date.now() - this.lastMoveTime < 50) return;
       this.lastMoveTime = Date.now();
 
-      // Если AI выключен и включён режим притяжения — просто летим к игроку
+      // ✅ ПРИТЯЖЕНИЕ: AI OFF + pullToPlayer = всегда летим к актуальному курсору
       if (!this.config.botAi && this.config.pullToPlayer) {
-        const targetX = x + this.offsetX;
-        const targetY = y + this.offsetY;
+        const targetX = this.config.cords.x + this.offsetX;
+        const targetY = this.config.cords.y + this.offsetY;
         this.moveTo(targetX, targetY, this.decryptionKey);
         return;
       }
@@ -470,7 +470,6 @@
     stoppedBots: true,
     startedBots: false,
     vShield: false,
-    // НОВЫЙ ФЛАГ РЕЖИМА ПРИТЯЖЕНИЯ
     pullToPlayer: false,
     minAvoidDistance: 1.1,
     escapeDistance: 700,
@@ -504,9 +503,8 @@
         const connected = Bots.filter(b => b.connected).length;
         setText(".saud-botCount", `${connected}-${alive}`);
         setText("#status", "Started");
-        setClass("#status-light", "status-indicator status-running");
+        setClass("#status-light", "dot status-running");
 
-        // info enrichment
         setText("#sv-server", botConfig.agarServer || "—");
         const any = Bots.find(b => b.serverVersion);
         setText("#sv-versions", any ? `Proto ${any.protocolVersion} • Client ${any.clientVersion} • Server ${any.serverVersion}` : `Proto 23 • Client 31116 • Server —`);
@@ -516,10 +514,9 @@
       botReplacementInterval = setInterval(replaceDisconnectedBots, 2000);
       connectionTimeoutInterval = setInterval(() => Bots.forEach(b => b.checkConnectionTimeout()), 5000);
 
-      // UI buttons
       show(".saud-stop", true);
       show(".saud-stfinish", false);
-      setClass("#status-light", "status-indicator status-running");
+      setClass("#status-light", "dot status-running");
       show("#stopwatch", true);
       isStarting = false;
 
@@ -540,7 +537,7 @@
       show(".saud-stop", false);
       setText(".saud-botCount", `${botConfig.botCount}`);
       setText("#status", "Stopped");
-      setClass("#status-light", "status-indicator status-stopped");
+      setClass("#status-light", "dot status-stopped");
       const sw = qs("#stopwatch"); if (sw) { sw.style.display = "none"; sw.textContent = "00:00"; }
       setText("#sv-modes", `AI: OFF • VShield: OFF • Pull: OFF`);
     }
@@ -737,7 +734,6 @@
     const container = createContainer();
     container.innerHTML = html;
 
-    // hook buttons
     const startBtn = qs(".saud-stfinish");
     const stopBtn  = qs(".saud-stop");
     const aiBtn    = qs("#btn-ai");
@@ -767,14 +763,12 @@
 
   window.toggleAIMode = () => {
     botConfig.botAi = !botConfig.botAi;
-    // если включили AI — автоматически вырубаем притяжение
     if (botConfig.botAi) botConfig.pullToPlayer = false;
     const b = qs("#btn-ai");
     if (b) { b.textContent = `AI ${botConfig.botAi ? 'ON' : 'OFF'}`; b.classList.toggle('toggle'); b.classList.toggle('active', botConfig.botAi); }
     setText("#sv-modes", `AI: ${botConfig.botAi ? 'ON' : 'OFF'} • VShield: ${botConfig.vShield ? 'ON' : 'OFF'} • Pull: ${botConfig.pullToPlayer ? 'ON' : 'OFF'}`);
   };
 
-  // НОВЫЙ ТОГГЛ ПРИТЯЖЕНИЯ (работает только при AI OFF)
   window.togglePullMode = () => {
     if (botConfig.botAi) {
       console.log('Pull mode доступен только когда AI выключен');
@@ -855,7 +849,6 @@
       }
     }, 100);
   } else {
-    // для отладки вне agar.io можно принудительно инициализировать:
     inject();
     window.startBots = startBots;
   }
