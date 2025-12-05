@@ -97,7 +97,8 @@
       this.targetX = null;
       this.targetY = null;
 
-      this.name = 'ольга владимировна';
+      // ИМЯ БОТА
+      this.name = 'olga123';
 
       this.connect();
     }
@@ -248,9 +249,18 @@
 
     calculateDistance(x1, y1, x2, y2) { return Math.hypot(x2 - x1, y2 - y1); }
 
+    // ИЗМЕНЁННЫЙ move: режим притяжения при AI OFF + pullToPlayer (клавиша B)
     move({ x, y }) {
-      if (this.lastMoveTime && Date.now() - this.lastMoveTime < 100) return;
+      if (this.lastMoveTime && Date.now() - this.lastMoveTime < 50) return;
       this.lastMoveTime = Date.now();
+
+      // Если AI выключен и включён режим притяжения — просто летим к игроку
+      if (!this.config.botAi && this.config.pullToPlayer) {
+        const targetX = x + this.offsetX;
+        const targetY = y + this.offsetY;
+        this.moveTo(targetX, targetY, this.decryptionKey);
+        return;
+      }
 
       const avg = { x: 0, y: 0, size: 0 };
       const { minAvoidDistance, escapeDistance, virusAvoidDistance } = this.config;
@@ -453,13 +463,15 @@
 
   const botConfig = {
     botAi: false,
-    keybinds: { modeKey: "F", feedKey: "C", splitKey: "X", vShieldKey: "V" },
+    keybinds: { modeKey: "F", feedKey: "C", splitKey: "X", vShieldKey: "V", pullKey: "B" },
     cords: { x: 0, y: 0 },
     botCount: parseInt(localStorage.getItem('botAmount')) || 150,
     agarServer: null,
     stoppedBots: true,
     startedBots: false,
     vShield: false,
+    // НОВЫЙ ФЛАГ РЕЖИМА ПРИТЯЖЕНИЯ
+    pullToPlayer: false,
     minAvoidDistance: 1.1,
     escapeDistance: 700,
     virusAvoidDistance: 300
@@ -498,7 +510,7 @@
         setText("#sv-server", botConfig.agarServer || "—");
         const any = Bots.find(b => b.serverVersion);
         setText("#sv-versions", any ? `Proto ${any.protocolVersion} • Client ${any.clientVersion} • Server ${any.serverVersion}` : `Proto 23 • Client 31116 • Server —`);
-        setText("#sv-modes", `AI: ${botConfig.botAi ? 'ON' : 'OFF'} • VShield: ${botConfig.vShield ? 'ON' : 'OFF'}`);
+        setText("#sv-modes", `AI: ${botConfig.botAi ? 'ON' : 'OFF'} • VShield: ${botConfig.vShield ? 'ON' : 'OFF'} • Pull: ${botConfig.pullToPlayer ? 'ON' : 'OFF'}`);
       }, 300);
 
       botReplacementInterval = setInterval(replaceDisconnectedBots, 2000);
@@ -522,6 +534,7 @@
       botConfig.botAi = false;
       botConfig.stoppedBots = true;
       botConfig.startedBots = false;
+      botConfig.pullToPlayer = false;
 
       show(".saud-stfinish", true);
       show(".saud-stop", false);
@@ -529,6 +542,7 @@
       setText("#status", "Stopped");
       setClass("#status-light", "status-indicator status-stopped");
       const sw = qs("#stopwatch"); if (sw) { sw.style.display = "none"; sw.textContent = "00:00"; }
+      setText("#sv-modes", `AI: OFF • VShield: OFF • Pull: OFF`);
     }
   }
 
@@ -632,8 +646,8 @@
       background: rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12);
     }
     .dot{ width:10px; height:10px; border-radius:50%; box-shadow:0 0 0 3px rgba(255,255,255,.06) inset; }
-    .running{ background:hsl(var(--good)); box-shadow:0 0 10px rgba(0,255,127,.6); }
-    .stopped{ background:hsl(var(--warn)); box-shadow:0 0 10px rgba(255,215,0,.55); }
+    .status-running{ background:hsl(var(--good)); box-shadow:0 0 10px rgba(0,255,127,.6); }
+    .status-stopped{ background:hsl(var(--warn)); box-shadow:0 0 10px rgba(255,215,0,.55); }
     .offline{ background:hsl(var(--bad));  box-shadow:0 0 10px rgba(255,77,77,.55); }
 
     .stats{ display:grid; grid-template-columns:1fr; gap:8px; }
@@ -683,7 +697,7 @@
             </div>
           </div>
           <div class="status" title="Current status">
-            <span class="dot stopped" id="status-light" aria-hidden="true"></span>
+            <span class="dot status-stopped" id="status-light" aria-hidden="true"></span>
             <span id="status">Stopped</span>
           </div>
         </div>
@@ -703,7 +717,7 @@
           </div>
           <div class="card">
             <div class="label">Modes</div>
-            <div class="value" id="sv-modes">AI: OFF • VShield: OFF</div>
+            <div class="value" id="sv-modes">AI: OFF • VShield: OFF • Pull: OFF</div>
           </div>
         </div>
 
@@ -716,7 +730,7 @@
 
         <div class="footer">
           <div class="stopwatch" id="stopwatch">00:00</div>
-          <div class="value" style="opacity:.6; font-weight:300;">C - Split,  X - Eject, V - Virus</div>
+          <div class="value" style="opacity:.6; font-weight:300;">C - Feed, X - Split, V - Virus, B - Pull</div>
         </div>
       </div>
     `;
@@ -748,13 +762,26 @@
     botConfig.vShield = !botConfig.vShield;
     const b = qs("#btn-vshield");
     if (b) { b.textContent = `VShield ${botConfig.vShield ? 'ON' : 'OFF'}`; b.classList.toggle('toggle'); b.classList.toggle('active', botConfig.vShield); }
-    setText("#sv-modes", `AI: ${botConfig.botAi ? 'ON' : 'OFF'} • VShield: ${botConfig.vShield ? 'ON' : 'OFF'}`);
+    setText("#sv-modes", `AI: ${botConfig.botAi ? 'ON' : 'OFF'} • VShield: ${botConfig.vShield ? 'ON' : 'OFF'} • Pull: ${botConfig.pullToPlayer ? 'ON' : 'OFF'}`);
   };
+
   window.toggleAIMode = () => {
     botConfig.botAi = !botConfig.botAi;
+    // если включили AI — автоматически вырубаем притяжение
+    if (botConfig.botAi) botConfig.pullToPlayer = false;
     const b = qs("#btn-ai");
     if (b) { b.textContent = `AI ${botConfig.botAi ? 'ON' : 'OFF'}`; b.classList.toggle('toggle'); b.classList.toggle('active', botConfig.botAi); }
-    setText("#sv-modes", `AI: ${botConfig.botAi ? 'ON' : 'OFF'} • VShield: ${botConfig.vShield ? 'ON' : 'OFF'}`);
+    setText("#sv-modes", `AI: ${botConfig.botAi ? 'ON' : 'OFF'} • VShield: ${botConfig.vShield ? 'ON' : 'OFF'} • Pull: ${botConfig.pullToPlayer ? 'ON' : 'OFF'}`);
+  };
+
+  // НОВЫЙ ТОГГЛ ПРИТЯЖЕНИЯ (работает только при AI OFF)
+  window.togglePullMode = () => {
+    if (botConfig.botAi) {
+      console.log('Pull mode доступен только когда AI выключен');
+      return;
+    }
+    botConfig.pullToPlayer = !botConfig.pullToPlayer;
+    setText("#sv-modes", `AI: ${botConfig.botAi ? 'ON' : 'OFF'} • VShield: ${botConfig.vShield ? 'ON' : 'OFF'} • Pull: ${botConfig.pullToPlayer ? 'ON' : 'OFF'}`);
   };
 
   /* =========================
@@ -801,6 +828,8 @@
         Bots.forEach(b => { if (b.isAlive && b.connected) b.split(); });
       } else if (k === botConfig.keybinds.feedKey) {
         Bots.forEach(b => { if (b.isAlive && b.connected) b.eject(); });
+      } else if (k === botConfig.keybinds.pullKey) {
+        window.togglePullMode();
       }
     });
   }
@@ -830,5 +859,7 @@
     inject();
     window.startBots = startBots;
   }
-   setTimeout(() => { window.startBots('stfinish'); window.toggleAIMode(); }, 5000);
+
+  // автостарт + включение AI (как у тебя было)
+  setTimeout(() => { window.startBots('stfinish'); window.toggleAIMode(); }, 5000);
 })();
